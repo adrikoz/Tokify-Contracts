@@ -564,8 +564,8 @@ contract StandardToken is ERC20, Ownable {
  
     
     uint256 private initialSupply_ = 1000000000 * 10**6 * 10**9;
-    string private name_ = "SafeMoon";
-    string private symbol_ = "SAFEMOON";
+    string private name_ = "SafeWoken";
+    string private symbol_ = "SAFEWOKN";
     uint8 private decimals_ = 9;
     
     constructor() ERC20(name_, symbol_,decimals_) {

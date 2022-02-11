@@ -1,0 +1,50 @@
+{
+  "_format": "hh-sol-cache-2",
+  "files": {
+    "/Users/adriankozhevnikov/Development/tokify/contracts/contracts/test.sol": {
+      "lastModificationDate": 1644588007678,
+      "contentHash": "1218bbab09e673ba7d2cf1f8d5562482",
+      "sourceName": "contracts/test.sol",
+      "solcConfig": {
+        "version": "0.8.11",
+        "settings": {
+          "optimizer": {
+            "enabled": false,
+            "runs": 200
+          },
+          "outputSelection": {
+            "*": {
+              "*": [
+                "abi",
+                "evm.bytecode",
+                "evm.deployedBytecode",
+                "evm.methodIdentifiers",
+                "metadata"
+              ],
+              "": [
+                "ast"
+              ]
+            }
+          }
+        }
+      },
+      "imports": [],
+      "versionPragmas": [
+        "^0.8.0"
+      ],
+      "artifacts": [
+        "Auth",
+        "DividendDistributor",
+        "IBEP20",
+        "IDEXFactory",
+        "IDEXPair",
+        "IDEXRouter",
+        "IDividendDistributor",
+        "IRewardsPool",
+        "RewardsPool",
+        "SafeMath",
+        "VEVEVE"
+      ]
+    }
+  }
+}
