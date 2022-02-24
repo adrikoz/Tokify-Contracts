@@ -6,20 +6,18 @@ fs.readFile(filename, 'utf8', async function(err, data) {
         
     console.log('OK: ' + filename);
     const content = data.split("\n");
-    content.splice(338, 0, `contract PapapepToken is IBEP20, Auth {`);
-    content.splice(342, 0, `    address public WBNB = 0xae13d989daC2f0dEbFf460aC112a837C89BAa7cd;`);
-    content.splice(347, 0, `    string constant _name = "PapapepToken";`);
-    content.splice(348, 0, `    string constant _symbol = "PAPAPEP";`);
-    content.splice(349, 0, `    uint8 constant _decimals = 9;`);
-    content.splice(351, 0, `    uint256 private _totalSupply = 1_000_000_000_000_000 * (10**_decimals);`);
-    content.splice(362, 0, `    uint256 liquidityFee = 300;`);
-    content.splice(364, 0, `    uint256 reflectionFee = 300;`);
-    content.splice(366, 0, `    uint256 marketingFee = 400;`);
-    content.splice(372, 0, `    uint256 buyMultiplier = 5000;`);
-    content.splice(373, 0, `    uint256 sellMultiplier = 20000;`);
-    content.splice(376, 0, `    address public marketingFeeReceiver = 0xa83038843bd7F6e26e5a741095FA85038A54d68a;`);
-    content.splice(401, 0, `        address _dexRouter = 0x9Ac64Cc6e4415144C455BD8E4837Fea55603e5c3;`);
-
+    content.splice(171, 0, `    address public WBNB = 0xae13d989daC2f0dEbFf460aC112a837C89BAa7cd;`);
+    content.splice(211, 0, `        : IDEXRouter(0x10ED43C718714eb63d5aA57B78B54704E256024E);`);
+    content.splice(385, 0, `contract PapapepToken is IBEP20, Auth {`);
+    content.splice(389, 0, `    address public WBNB = 0xae13d989daC2f0dEbFf460aC112a837C89BAa7cd;`);
+    content.splice(394, 0, `    string constant _name = "PapapepToken";`);
+    content.splice(395, 0, `    string constant _symbol = "PAPAPEP";`);
+    content.splice(396, 0, `    uint8 constant _decimals = 9;`);
+    content.splice(399, 0, `    uint256 private _totalSupply = 1_000_000_000_000_000 * (10**_decimals);`);
+    content.splice(410, 0, `    uint256 liquidityFee = 300;`);
+    content.splice(412, 0, `    uint256 rewardsFee = 300;`);
+    content.splice(414, 0, `    uint256 backingFee = 400;`);
+    content.splice(416, 0, `    uint256 marketingFee = 300;`);
     text = content.join("\n");
     try {
         await fs.writeFile('templates/fileCreated.sol', text, () => {});
