@@ -379,5 +379,6 @@ describe("Token contract", function () {
         expect(await hardhatToken.balanceOf(owner.address)).to.equal(totalSupply.sub(90));
         expect(await hardhatToken.balanceOf(addr2.address)).to.equal(10);
       });
+    
   });
 });

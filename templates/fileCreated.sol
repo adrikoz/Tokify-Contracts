@@ -148,277 +148,45 @@ interface IDEXRouter {
     ) external;
 }
  
-interface IDividendDistributor {
-    function setDistributionCriteria(uint256 _minDistribution) external;
-    function setShare(address shareholder, uint256 amount) external;
-    function processDividend() external;
-    function viewDividendTokenAddress() external view returns (address tokenAddress);
-    function setDividendToken(address _dividendTokenAddress) external;
-}
- 
-contract DividendDistributor is IDividendDistributor {
-    using SafeMath for uint256;
- 
-    address _token;
-    address _rewardsPool;
- 
-    struct Share {
-        uint256 amount;
-        uint256 totalExcluded;
-        uint256 totalRealised;
-    }
- 
-    IBEP20 dividendToken;
-    address public WBNB = 0xae13d989daC2f0dEbFf460aC112a837C89BAa7cd;
-    IDEXRouter router;
- 
-    address[] shareholders;
-    mapping (address => uint256) shareholderIndexes;
- 
-    mapping (address => Share) public shares;
- 
-    uint256 public totalShares;
-    uint256 public totalDividends;
-    uint256 public totalDistributed;
-    
-    uint256 public dividendsPerShare;
-    uint256 public dividendsPerShareAccuracyFactor = 10 ** 36;
-    uint256 public minDistribution = 0;
- 
-    uint256 currentIndex;
- 
-    bool public isDistributing;
-    bool public neverDistributed = true;
-    uint256 startingIndex;
- 
-    bool initialized;
-    modifier initialization() {
-        require(!initialized);
-        _;
-        initialized = true;
-    }
- 
-    modifier onlyToken() {
-        require(msg.sender == _token); _;
-    }
-
-     modifier onlyRewardsPool() {
-        require(msg.sender == _rewardsPool); _;
-    }
- 
-    constructor (address _router, address _rewardTokenAddress, address _rewardsPoolAddress) {
-        router = _router != address(0)
-        ? IDEXRouter(_router)
-        : IDEXRouter(0x9Ac64Cc6e4415144C455BD8E4837Fea55603e5c3);
-        _token = msg.sender;
-        _rewardsPool = _rewardsPoolAddress;
-        dividendToken = IBEP20(_rewardTokenAddress);
-        currentIndex = 0;
-        isDistributing = false;
-    }
- 
-    function setDistributionCriteria(uint256 _minDistribution) external override onlyToken {
-        minDistribution = _minDistribution;
-    }
- 
-    function setShare(address shareholder, uint256 amount) external override onlyToken {
-        if(shares[shareholder].amount > 0){
-            distributeDividend(shareholder);
-        }
- 
-        if(amount > 0 && shares[shareholder].amount == 0){
-            addShareholder(shareholder);
-        }else if(amount == 0 && shares[shareholder].amount > 0){
-            removeShareholder(shareholder);
-        }
- 
-        totalShares = totalShares.sub(shares[shareholder].amount).add(amount);
-        shares[shareholder].amount = amount;
-        shares[shareholder].totalExcluded = getCumulativeDividends(shares[shareholder].amount);
-    }
-
-    function setDividendToken(address _dividendTokenAddress) external override onlyToken {
-        require(neverDistributed == true, 'Cannot change dividend token after the first distribution has started');
-        dividendToken = IBEP20(_dividendTokenAddress);
-    }
- 
-    receive() external payable onlyRewardsPool {
-        uint256 balanceBefore = dividendToken.balanceOf(address(this));
- 
-        address[] memory path = new address[](2);
-        path[0] = WBNB;
-        path[1] = address(dividendToken);
- 
-        router.swapExactETHForTokensSupportingFeeOnTransferTokens{value: msg.value}(
-            0,
-            path,
-            address(this),
-            block.timestamp
-        );
- 
-        uint256 amount = dividendToken.balanceOf(address(this)).sub(balanceBefore);
- 
-        totalDividends = totalDividends.add(amount);
-        dividendsPerShare = dividendsPerShare.add(dividendsPerShareAccuracyFactor.mul(amount).div(totalShares));
- 
-        startingIndex = currentIndex;
-        isDistributing = true;
-        neverDistributed = false;
-    }
- 
-    function processDividend() external override onlyToken {
-        uint256 shareholderCount = shareholders.length;
- 
-        if(shareholderCount == 0) { return; }
-        if(isDistributing == false) { return; }
- 
-        uint256 iterations = 0;
- 
-        while(iterations < 4) {
-            if(currentIndex >= shareholderCount){
-                currentIndex = 0;
-            }
- 
-            if(shouldDistribute(shareholders[currentIndex])){
-                distributeDividend(shareholders[currentIndex]);
-            }
- 
-            currentIndex++;
-            iterations++;
-            if(currentIndex == startingIndex) {
-                isDistributing = false;
-            }
-        }
-    }
- 
-    function shouldDistribute(address shareholder) internal view returns (bool) {
-        return getUnpaidEarnings(shareholder) > minDistribution;
-    }
- 
-    function distributeDividend(address shareholder) internal {
-        if(shares[shareholder].amount == 0){ return; }
- 
-        uint256 amount = getUnpaidEarnings(shareholder);
-        if(amount > 0){
-            totalDistributed = totalDistributed.add(amount);
-            dividendToken.transfer(shareholder, amount);
-            shares[shareholder].totalRealised = shares[shareholder].totalRealised.add(amount);
-            shares[shareholder].totalExcluded = getCumulativeDividends(shares[shareholder].amount);
-        }
-    }
- 
-    function getUnpaidEarnings(address shareholder) public view returns (uint256) {
-        if(shares[shareholder].amount == 0){ return 0; }
- 
-        uint256 shareholderTotalDividends = getCumulativeDividends(shares[shareholder].amount);
-        uint256 shareholderTotalExcluded = shares[shareholder].totalExcluded;
- 
-        if(shareholderTotalDividends <= shareholderTotalExcluded){ return 0; }
- 
-        return shareholderTotalDividends.sub(shareholderTotalExcluded);
-    }
- 
-    function getCumulativeDividends(uint256 share) internal view returns (uint256) {
-        return share.mul(dividendsPerShare).div(dividendsPerShareAccuracyFactor);
-    }
- 
-    function addShareholder(address shareholder) internal {
-        shareholderIndexes[shareholder] = shareholders.length;
-        shareholders.push(shareholder);
-    }
- 
-    function removeShareholder(address shareholder) internal {
-        shareholders[shareholderIndexes[shareholder]] = shareholders[shareholders.length-1];
-        shareholderIndexes[shareholders[shareholders.length-1]] = shareholderIndexes[shareholder];
-        shareholders.pop();
-    }
- 
-    function viewDividendTokenAddress() external view override returns (address tokenAddress) {
-        return address(dividendToken);
-    }
-}
- 
-interface IRewardsPool {
-    function transferBNBToAddress(address recipient, uint256 amount) external;
-}
- 
-/// @dev Contract to store and distribute BNB rewards accrued through taxes in the parent token contract
-contract RewardsPool is IRewardsPool {
-    using SafeMath for uint256;
- 
-    address _token;
- 
-    bool initialized;
-    modifier initialization() {
-        require(!initialized);
-        _;
-        initialized = true;
-    }
- 
-    /// @dev Require the caller to be the parent token contract
-    modifier onlyToken() {
-        require(msg.sender == _token); _;
-    }
- 
-    constructor () {
-        _token = msg.sender;
-    }
- 
-    receive() external payable{}
- 
-    /// @dev Transfer the BNB reward from the contract to a recipient
-    function transferBNBToAddress(address recipient, uint256 amount) external override onlyToken {
-        (bool success,) = address(recipient).call{value: amount}("");
-        require(success);
-    }
-}
- 
 /** @dev this token is backed by BNB, which can be sent to the contract by anyone and can be redeemed by burning the token. 
  
-There are two BNB pools - the asset pool which is simply the amount of BNB the contract holds, 
-and the reward pool, which is the amount of BNB collected through taxes and is stored in a separate contract (RewardsPool).
- 
 When burning the token, the amount of BNB given is calculated by taking (token amount)/(circulating supply) and giving that fraction of the asset pool BNB.
-However if there is BNB in the rewards pool, that is given first before dipping into the asset pool. This raises the floor price of the token when burning it as less BNB leaves the asset pool.
- 
-The rewards pool is separated because the owner of the token can also choose to distribute a fraction of the rewards pool at specific points in time to reward holders.
 */ 
-contract AdrianCoin is IBEP20, Auth {
+ 
+contract PapapepToken is IBEP20, Auth {
     using SafeMath for uint256;
  
     uint256 public constant MASK = type(uint128).max;
-    address WBNB = 0xae13d989daC2f0dEbFf460aC112a837C89BAa7cd;
+    address public WBNB = 0xbb4CdB9CBd36B01bD1cBaEBF2De08d9173bc095c;
     address DEAD = 0x000000000000000000000000000000000000dEaD;
     address ZERO = 0x0000000000000000000000000000000000000000;
     address DEAD_NON_CHECKSUM = 0x000000000000000000000000000000000000dEaD;
  
-    string constant _name = "AdrianCoin";
-    string constant _symbol = "NEW";
+    string constant _name = "PapapepToken";
+    string constant _symbol = "PAPAPEP";
     uint8 constant _decimals = 9;
  
+    uint256 _totalSupply = 1_000_000_000_000_000 * (10 ** _decimals);
     uint256 public _maxTxAmount = _totalSupply.div(400); // 0.25%
-    uint256 private _totalSupply = 100000000000000;
  
     mapping (address => uint256) _balances;
     mapping (address => mapping (address => uint256)) _allowances;
  
     mapping (address => bool) isFeeExempt;
     mapping (address => bool) isTxLimitExempt;
-    mapping (address => bool) isDividendExempt;
     mapping (address => bool) isExcludedFromPause;
+    mapping (address => bool) isBlacklisted;
  
     /// @dev liquidityFee determines tax to send to the liquidity pool
-    uint256 liquidityFee = 350;
-    /// @dev rewardsFee determines tax to send to the rewards pool
-    uint256 rewardsFee = 400;
+    uint256 liquidityFee = 400;
     /// @dev backingFee determines tax to send to the asset pool, which backs the token
-    uint256 backingFee = 250;
+    uint256 backingFee = 200;
     /// @dev marketingFee determines tax to send to the marketing wallet
     uint256 marketingFee = 200;
-    uint256 totalFee = liquidityFee.add(rewardsFee).add(backingFee).add(marketingFee);
+    uint256 totalFee = liquidityFee.add(backingFee).add(marketingFee);
     /// @dev fee denominator allows taxes to be decimal number percentages
     uint256 feeDenominator = 10000;
-    uint256 public maxSellFee = 5000;
+    uint256 public maxSellFee = 3000;
     uint256 public maxSellMultiplier = 50000;
 
     uint256 public baseTaxesAccumulated;
@@ -437,30 +205,22 @@ contract AdrianCoin is IBEP20, Auth {
  
     IDEXRouter public router;
     address public pair;
- 
-    RewardsPool rewardsPool;
-    address public rewardsPoolAddress;
- 
-    DividendDistributor dividendDistributor;
-    address public dividendDistributorAddress;
 
     uint256 public assetPoolLockTimestamp;
     uint256 public assetPoolLockTime;
-    uint256 public pauseTimestamp;
-    uint256 public pauseTime;
+    bool public isPaused;
  
     /// @dev before processing taxes in BNB, the taxed token is accumulated in the contract to save on gas fees
     /// @dev the swap to BNB will only occur once the swapThreshold is reached
     bool public swapEnabled = true;
     uint256 public swapThreshold = _totalSupply / 2000; // 0.05%
-    uint256 public sellingSwapThreshold = _totalSupply / 8000; // 0.0125%
+    uint256 public sellingSwapThreshold = _totalSupply / 2000; // 0.05%
     bool inSwap;
     modifier swapping() { inSwap = true; _; inSwap = false; }
  
     constructor (
         address _dexRouter,
-        address _marketingFeeReceiver,
-        address _rewardTokenAddress
+        address _marketingFeeReceiver
         ) Auth(msg.sender) {
         /// @dev set the router address and create pair
         router = IDEXRouter(_dexRouter);
@@ -468,21 +228,9 @@ contract AdrianCoin is IBEP20, Auth {
         _allowances[address(this)][address(router)] = _totalSupply;
         WBNB = router.WETH();
  
-        /// @dev create the rewards pool to store BNB rewards
-        rewardsPool = new RewardsPool();
-        rewardsPoolAddress = address(rewardsPool);
- 
-        /// @dev create the dividend distributor to distribute BNB rewards
-        dividendDistributor = new DividendDistributor(_dexRouter, _rewardTokenAddress, rewardsPoolAddress);
-        dividendDistributorAddress = address(dividendDistributor);
- 
         isFeeExempt[msg.sender] = true;
         isExcludedFromPause[msg.sender] = true;
         isTxLimitExempt[msg.sender] = true;
-        isDividendExempt[pair] = true;
-        isDividendExempt[address(this)] = true;
-        isDividendExempt[DEAD] = true;
-        isDividendExempt[ZERO] = true;
  
         autoLiquidityReceiver = msg.sender;
         marketingFeeReceiver = _marketingFeeReceiver;
@@ -526,7 +274,8 @@ contract AdrianCoin is IBEP20, Auth {
     }
  
     function _transferFrom(address sender, address recipient, uint256 amount) internal returns (bool) {
-        if(isPaused()){
+        require(isBlacklisted[sender] == false && isBlacklisted[recipient] == false,"WARNING: either sender or recipient is blacklisted, contact an administrator for assitance");
+        if(isPaused){
           require(isExcludedFromPause[sender] == true || isExcludedFromPause[recipient] == true,"WARNING: contract is in pause for maintenance");
         }
         /// @dev if the token is currently being swapped by the contract into BNB, then no taxes apply
@@ -546,12 +295,6 @@ contract AdrianCoin is IBEP20, Auth {
  
         _balances[recipient] = _balances[recipient].add(amountReceived);
         if(recipient == address(this)) {sellingTaxAccumulated = sellingTaxAccumulated.add(amount);}
- 
-        /// @dev set the new shares of the token holders according to the balances after this transfer has occurred
-        if(!isDividendExempt[sender]){ try dividendDistributor.setShare(sender, _balances[sender]) {} catch {} }
-        if(!isDividendExempt[recipient]){ try dividendDistributor.setShare(recipient, _balances[recipient]) {} catch {} }
- 
-        if(dividendDistributor.isDistributing()){try dividendDistributor.processDividend() {} catch {}}
  
         emit Transfer(sender, recipient, amountReceived);
         return true;
@@ -580,10 +323,10 @@ contract AdrianCoin is IBEP20, Auth {
     /// @dev sell multiplier is set depending on the current gap ratio proportionally
     function getSellMultipliedFee() public view returns (uint256) {
         uint256 sellMultiplier = getCurrentGapRatio(feeDenominator);
-        if(sellMultiplier < feeDenominator){
+        if(sellMultiplier <= feeDenominator){
             sellMultiplier = feeDenominator;
         }
-        if(sellMultiplier > maxSellMultiplier){
+        if(sellMultiplier >= maxSellMultiplier){
             sellMultiplier = maxSellMultiplier;
         }
         uint256 sellFee = totalFee.mul(sellMultiplier).div(feeDenominator);
@@ -605,7 +348,11 @@ contract AdrianCoin is IBEP20, Auth {
         } else if (token0 == address(this)) {
             (reservesToken, reservesBNB,) = routerPair.getReserves();
         }
-        uint256 gapRatio = denominator.mul(getCirculatingSupply().mul(reservesBNB)).div(reservesToken.mul(getAmountBNBInAssetPool()));
+        uint256 bnbAsset = getAmountBNBInAssetPool();
+        if(bnbAsset == 0) {
+            bnbAsset = 1;
+        }
+        uint256 gapRatio = denominator.mul(getCirculatingSupply().mul(reservesBNB)).div(reservesToken.mul(bnbAsset));
         return gapRatio;
     }
 
@@ -638,7 +385,7 @@ contract AdrianCoin is IBEP20, Auth {
  
     function shouldSwapBack() internal view returns (bool) {
         return msg.sender != pair
-        && !isPaused()
+        && !isPaused
         && !inSwap
         && swapEnabled
         && baseTaxesAccumulated >= swapThreshold;
@@ -676,10 +423,9 @@ contract AdrianCoin is IBEP20, Auth {
         /// @dev since adding to liquidity pool requires both BNB and the token, we only convert half of it
         uint256 amountBNBLiquidity = amountBNB.mul(dynamicLiquidityFee).div(totalBNBFee).div(2);
         uint256 amountBNBMarketing = amountBNB.mul(marketingFee).div(totalBNBFee);
-        uint256 amountBNBReflection = amountBNB.mul(rewardsFee).div(totalBNBFee);
         /// @dev there is no value here for the backing fee in BNB, since it would be in the contract after conversion to BNB anyway
  
-        sendSwappedBNB(amountBNBMarketing, amountBNBReflection);
+        sendSwappedBNB(amountBNBMarketing);
  
         /// @dev transfer the portion of taxes taken for liquidity pool to the liquidity pool
         if(amountToLiquify > 0){
@@ -698,7 +444,7 @@ contract AdrianCoin is IBEP20, Auth {
 
     function shouldSwapBackSelling() internal view returns (bool) {
         return msg.sender != pair
-        && !isPaused()
+        && !isPaused
         && !inSwap
         && swapEnabled
         && sellingTaxAccumulated >= sellingSwapThreshold;
@@ -724,10 +470,7 @@ contract AdrianCoin is IBEP20, Auth {
         sellingTaxAccumulated = balanceOf(address(this)).sub(baseTaxesAccumulated);
     }
 
-    function sendSwappedBNB(uint256 amountBNBMarketing, uint256 amountBNBReflection) internal {
-        /// @dev transfer the portion of taxes taken for rewards to the rewards pool
-        (bool rewardsTransferSuccess,) = address(rewardsPoolAddress).call{value: amountBNBReflection}("");
-        require(rewardsTransferSuccess);
+    function sendSwappedBNB(uint256 amountBNBMarketing) internal {
  
         /// @dev tax on the marketing wallet going towards the contract generator platform
         uint256 generatorAmount = amountBNBMarketing.mul(generatorFee).div(
@@ -747,12 +490,6 @@ contract AdrianCoin is IBEP20, Auth {
         _maxTxAmount = amount;
     }
 
-    /// @dev change the token the dividend distributor distributes. This can only be done before the dividend distributor starts its first distribution
-    function setDividendToken(address _dividendTokenAddress) external authorized {
-        require(dividendDistributor.neverDistributed() == true, 'Cannot change dividend token after the first distribution has started');
-        dividendDistributor.setDividendToken(_dividendTokenAddress);
-    }
-
     /// @dev set the maximum sell fee that can be applied with a denominator of 10,000
     function setMaxSellFeeDenominator10000(uint256 _maxSellFee) external authorized {
         require(_maxSellFee <= 5000, "Value too high");
@@ -767,20 +504,20 @@ contract AdrianCoin is IBEP20, Auth {
         maxSellMultiplier = _maxSellMultiplier;
     }
  
-    /// @dev set whether an address is exempt from the reward
-    function setIsDividendExempt(address holder, bool exempt) external authorized {
-        require(holder != address(this) && holder != pair);
-        isDividendExempt[holder] = exempt;
-        if(exempt){
-            dividendDistributor.setShare(holder, 0);
-        }else{
-            dividendDistributor.setShare(holder, _balances[holder]);
+    /// @dev set whether an address is exempt from the fee
+    function excludeFromFee(address[] memory accounts) public authorized {
+        uint256 length = accounts.length;
+        for (uint i=0; i<length; i++) {
+            isFeeExempt[accounts[i]] = true;
         }
     }
- 
+
     /// @dev set whether an address is exempt from the fee
-    function setIsFeeExempt(address holder, bool exempt) external authorized {
-        isFeeExempt[holder] = exempt;
+    function includeInFee(address[] memory accounts) public authorized {
+        uint256 length = accounts.length;
+        for (uint i=0; i<length; i++) {
+            isFeeExempt[accounts[i]] = false;
+        }
     }
  
     /// @dev set whether an address is exempt from the maximum transaction limit
@@ -791,15 +528,13 @@ contract AdrianCoin is IBEP20, Auth {
     /// @dev set the fees with a denominator of 10000
     function setFeesWithDenominator10000(
         uint256 _liquidityFee,
-        uint256 _rewardsFee,
         uint256 _backingFee,
         uint256 _marketingFee
     ) external authorized {
         liquidityFee = _liquidityFee;
-        rewardsFee = _rewardsFee;
         backingFee = _backingFee;
         marketingFee = _marketingFee;
-        totalFee = _liquidityFee.add(_rewardsFee).add(_backingFee).add(_marketingFee);
+        totalFee = _liquidityFee.add(_backingFee).add(_marketingFee);
         if(totalFee > maxSellFee) {
             maxSellFee = totalFee;
         }
@@ -830,10 +565,6 @@ contract AdrianCoin is IBEP20, Auth {
         takeFeeActive = setTakeFeeActive;
     }
  
-    function setDistributionCriteria(uint256 _minDistribution) external authorized {
-        dividendDistributor.setDistributionCriteria(_minDistribution);
-    }
- 
     /// @dev get the token supply not stored in the burn wallets
     function getCirculatingSupply() public view returns (uint256) {
         return _totalSupply.sub(balanceOf(DEAD)).sub(balanceOf(ZERO));
@@ -844,25 +575,9 @@ contract AdrianCoin is IBEP20, Auth {
         return accuracy.mul(balanceOf(pair).mul(2)).div(getCirculatingSupply()) > target;
     }
  
-    /// @dev pay out a fraction of the BNB stored in the reward pool contract (RewardsPool)
-    function payoutFractionOfRewardsPool(uint256 numerator, uint256 denominator) external authorized {
-        uint256 rewardsPoolBalance = rewardsPoolAddress.balance;
-        uint256 toDistribute = rewardsPoolBalance.mul(numerator).div(denominator);
-        rewardsPool.transferBNBToAddress(dividendDistributorAddress, toDistribute);
-    }
- 
     /// @dev get amount of BNB stored in the asset pool (this contract)
     function getAmountBNBInAssetPool() public view returns (uint256) {
         return address(this).balance;
-    }
- 
-    /// @dev get amount of BNB stored in the rewards pool (RewardsPool contract)
-    function getAmountBNBInRewardsPool() public view returns (uint256) {
-        return rewardsPoolAddress.balance;
-    }
- 
-    function getDividendTokenAddress() public view returns (address) {
-        return dividendDistributor.viewDividendTokenAddress();
     }
 
     function lockAssetRewardPools(uint256 _numberOfDays) external onlyOwner {
@@ -871,28 +586,41 @@ contract AdrianCoin is IBEP20, Auth {
     }
 
     /// @dev necessary for contract upgrades. Can do at most every 10 days
-    function pauseContract(uint256 _numberOfDays) external onlyOwner {
-        require(block.timestamp >= pauseTimestamp + pauseTime + 10 days, "Not enough days passed since last pause");
-        require(_numberOfDays <= 2, "Desired pause too long");
-        pauseTimestamp = block.timestamp;
-        pauseTime = _numberOfDays.mul(1 days);
+    function pauseContract() external onlyOwner {
+        isPaused = true;
     }
 
-    function isPaused() public view returns (bool) {
-        return block.timestamp < pauseTimestamp + pauseTime;
+    /// @dev necessary for contract upgrades. Can do at most every 10 days
+    function unpauseContract() external onlyOwner {
+        isPaused = false;
     }
 
     /// @dev exclude specific wallets from the pause
-    function excludeFromPause(address account) public authorized {
-        isExcludedFromPause[account] = true;
+    function excludeFromPause(address[] memory accounts) public authorized {
+        uint256 length = accounts.length;
+        for (uint i=0; i<length; i++) {
+            isExcludedFromPause[accounts[i]] = true;
+        }
     }
 
     /// @dev include and address in the pause
-    function includeInPause(address account) public authorized {
-        require(isOwner(account) == false, "ERR: owner can't be included");
-        isExcludedFromPause[account] = false;
+    function includeInPause(address[] memory accounts) public authorized {
+        uint256 length = accounts.length;
+        for (uint i=0; i<length; i++) {
+            require(isOwner(accounts[i]) == false, "ERR: owner can't be included");
+            isExcludedFromPause[accounts[i]] = false;
+        }
     }
 
+    /// @dev exclude specific wallets from the pause
+    function excludeFromBlacklist(address account) public authorized {
+        isBlacklisted[account] = false;
+    }
+
+    /// @dev include and address in the pause
+    function includeInBlacklist(address account) public authorized {
+        isBlacklisted[account] = true;
+    }
 
     /// @dev necessary for contract upgrades
     function moveAssetPool(address recipient) external onlyOwner {
@@ -901,24 +629,17 @@ contract AdrianCoin is IBEP20, Auth {
         (bool success,) = address(recipient).call{value: amountAssetPoolBNBToTransfer}("");
         require(success);
     }
-
-    /// @dev necessary for contract upgrades
-    function moveRewardPool(address recipient) external onlyOwner {
-        require(block.timestamp >= assetPoolLockTimestamp + assetPoolLockTime, "Rewards pool currently locked");
-        uint256 rewardsPoolBalance = rewardsPoolAddress.balance;
-        rewardsPool.transferBNBToAddress(recipient, rewardsPoolBalance);
-    }
  
     /// @dev allow holders to burn their token in exchange for BNB stored in the asset and rewards pool
     function burnForBNB(uint256 amount) external returns (bool) {
- 
         address sender = msg.sender;
         return _burnForBNB(sender, amount);
     }
  
     /// @dev function to process the sending of BNB to person burning the token
     function _burnForBNB(address sender, uint256 amount) internal returns (bool) {
-        if(isPaused()){
+        require(isBlacklisted[sender] == false,"WARNING: this account is blacklisted, contact an administrator for assitance");
+        if(isPaused){
           require(isExcludedFromPause[sender] == true,"WARNING: contract is in pause for upgrade");
         }
         /// @dev calculate amount BNB to transfer to wallet burning the token
@@ -930,20 +651,9 @@ contract AdrianCoin is IBEP20, Auth {
         _balances[sender] = _balances[sender].sub(amount, "Insufficient Balance");
         _balances[recipient] = _balances[recipient].add(amount);
  
-        /// @dev when sending BNB, first the BNB from the rewards pool is sent according to amount calculated
-        /// @dev if there is not enough BNB in the rewards pool then the rest is covered by BNB in the asset pool
-        /// @dev this ensurees that the floor price rises when a holder burns the token as the asset pool decreases at a slower rate than the token is burned
-        if(getAmountBNBInRewardsPool() >= amountBNBToTransfer) {
-            rewardsPool.transferBNBToAddress(sender, amountBNBToTransfer);
-        } else {
-            uint256 amountAssetPoolBNBToTransfer = amountBNBToTransfer.sub(getAmountBNBInRewardsPool());
-            rewardsPool.transferBNBToAddress(sender, getAmountBNBInRewardsPool());
-            (bool success,) = address(sender).call{value: amountAssetPoolBNBToTransfer}("");
-            require(success);
-        }
- 
-        /// @dev set the new share of the wallet burning the token
-        if(!isDividendExempt[sender]){ try dividendDistributor.setShare(sender, _balances[sender]) {} catch {} }
+        /// @dev send BNB from asset pool to function callr
+        (bool success,) = address(sender).call{value: amountBNBToTransfer}("");
+        require(success);
  
         emit Transfer(sender, recipient, amount);
         return true;

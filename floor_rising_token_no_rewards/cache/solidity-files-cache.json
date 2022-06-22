@@ -1,0 +1,91 @@
+{
+  "_format": "hh-sol-cache-2",
+  "files": {
+    "/Users/adriankozhevnikov/Development/tokify/contracts/floor_rising_token/contracts/test.sol": {
+      "lastModificationDate": 1645722364942,
+      "contentHash": "20da450e6b6cdd631cb7b50a29ee2f9a",
+      "sourceName": "contracts/test.sol",
+      "solcConfig": {
+        "version": "0.8.11",
+        "settings": {
+          "optimizer": {
+            "enabled": false,
+            "runs": 200
+          },
+          "outputSelection": {
+            "*": {
+              "*": [
+                "abi",
+                "evm.bytecode",
+                "evm.deployedBytecode",
+                "evm.methodIdentifiers",
+                "metadata"
+              ],
+              "": [
+                "ast"
+              ]
+            }
+          }
+        }
+      },
+      "imports": [],
+      "versionPragmas": [
+        "^0.8.0"
+      ],
+      "artifacts": [
+        "Auth",
+        "DividendDistributor",
+        "IBEP20",
+        "IDEXFactory",
+        "IDEXPair",
+        "IDEXRouter",
+        "IDividendDistributor",
+        "IRewardsPool",
+        "RewardsPool",
+        "SafeMath",
+        "TokifyRisingFloor"
+      ]
+    },
+    "/Users/adriankozhevnikov/Development/tokify/contracts/floor_rising_token_no_rewards/contracts/test.sol": {
+      "lastModificationDate": 1650887787547,
+      "contentHash": "e5ed920cba5a0005292a93f622925605",
+      "sourceName": "contracts/test.sol",
+      "solcConfig": {
+        "version": "0.8.11",
+        "settings": {
+          "optimizer": {
+            "enabled": false,
+            "runs": 200
+          },
+          "outputSelection": {
+            "*": {
+              "*": [
+                "abi",
+                "evm.bytecode",
+                "evm.deployedBytecode",
+                "evm.methodIdentifiers",
+                "metadata"
+              ],
+              "": [
+                "ast"
+              ]
+            }
+          }
+        }
+      },
+      "imports": [],
+      "versionPragmas": [
+        "^0.8.0"
+      ],
+      "artifacts": [
+        "Auth",
+        "IBEP20",
+        "IDEXFactory",
+        "IDEXPair",
+        "IDEXRouter",
+        "SafeMath",
+        "TokifyRisingFloor"
+      ]
+    }
+  }
+}

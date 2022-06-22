@@ -2,8 +2,8 @@
   "_format": "hh-sol-cache-2",
   "files": {
     "/Users/adriankozhevnikov/Development/tokify/contracts/floor_rising_token/contracts/test.sol": {
-      "lastModificationDate": 1645721392595,
-      "contentHash": "86409388f7eddc596bce275792363634",
+      "lastModificationDate": 1645722364942,
+      "contentHash": "20da450e6b6cdd631cb7b50a29ee2f9a",
       "sourceName": "contracts/test.sol",
       "solcConfig": {
         "version": "0.8.11",

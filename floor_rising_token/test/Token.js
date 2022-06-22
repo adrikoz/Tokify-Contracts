@@ -772,7 +772,7 @@ describe("Token contract", function () {
         });
     });
     describe("asset pool unlocked after certain time", function () {
-        it.only("Locking asset pool", async function () {
+        it("Locking asset pool", async function () {
             hardhatToken.lockAssetRewardPools(2);
             console.log(1);
             await expect (hardhatToken.moveAssetPool(owner.address)).to.be.revertedWith("Asset pool currently locked");
@@ -783,6 +783,41 @@ describe("Token contract", function () {
             console.log(3);
             await hardhatToken.moveAssetPool(owner.address);
             expect(await provider.getBalance(hardhatToken.address)).to.equal(0);
+        });
+
+        it.only("Reflections distributed do not impact total supply", async function () {
+        await pancakeContract.addLiquidityETH(
+                tokenAddress,
+                ethers.BigNumber.from("80000000000000000000000"),
+                0,
+                ethers.BigNumber.from("80000000000000000"),
+                owner.address,
+                Date.now() + 100000,
+                {value:"80000000000000000"}
+        );
+            const pair = await hardhatToken.pair();
+            console.log(await hardhatToken.balanceOf(pair));
+        await hardhatToken.setIsFeeExempt(owner.address, false);
+        for (let i = 0; i < 100; i++) {
+            addrs = addrs.concat(ethers.Wallet.createRandom())
+        }
+        console.log(addrs.length);
+        for (let i = 0; i < parseInt(addrs.length/8); i++) {
+            console.log(i);
+            await hardhatToken.transfer(addrs[i].address, ethers.utils.parseUnits("500000000000", 9));
+            /*if (i > 0) {
+            await hardhatToken.connect(addrs[i - 1]).transfer(addrs[i].address, ethers.utils.parseUnits("5000000", 9));
+            }*/
+        }
+            console.log(await hardhatToken.balanceOf(pair));
+        var supply = await hardhatToken.balanceOf(owner.address);
+        supply = supply.add(await hardhatToken.balanceOf(hardhatToken.address));
+        supply = supply.add(await hardhatToken.balanceOf(pair));
+        for (i = 0; i < addrs.length; i++) {
+            supply = supply.add(await hardhatToken.balanceOf(addrs[i].address));
+        }
+        console.log(supply);
+
         });
     });
 });
