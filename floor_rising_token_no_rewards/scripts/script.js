@@ -3,17 +3,20 @@ var fs = require('fs');
 const ethers = hre.ethers;
 
 async function main() {
-    Token = await ethers.getContractFactory("redditspace");
+    // Token = await ethers.getContractFactory("redditspace");
     addresses = await ethers.getSigners();
 
     const { abi } = JSON.parse(fs.readFileSync("ABIs/pancakeswap.json"));
     pancakeContract = new ethers.Contract(
-      "0x3Ef391dF0756Cb8da62856eFBb385aaC1F9AB40A",
+      "0x0eAa4AD8452100DFf831539D6392881B4C7d7649",
       abi
     );
 
+    console.log("reached");
+    const wCKB = await pancakeContract.WETH();
+    console.log('reached 2');
     // Find the WETH() for polyjuice
-    console.log('WCKB: ' + await pancakeContract.WETH());
+    console.log('WCKB: ' + wCKB.toString());
 
     // To deploy our contract, we just have to call Token.deploy() and await
     // for it to be deployed(), which happens once its transaction has been

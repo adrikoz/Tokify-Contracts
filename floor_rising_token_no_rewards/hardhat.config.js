@@ -22,11 +22,11 @@ module.exports = {
   defaultNetwork: "hardhat",
   networks: {
     hardhat: {
-      chainId: 71393,
+      chainId: 71401,
       gasPrice: 20000000000,
       accounts: { mnemonic: mnemonic },
       forking: {
-        url: "https://godwoken-testnet-web3-rpc.ckbapp.dev/",
+        url: "https://godwoken-testnet-v1.ckbapp.dev",
         enabled: true,
       },
     },
