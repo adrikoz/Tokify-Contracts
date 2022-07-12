@@ -574,35 +574,4 @@ contract StandardToken is ERC20, Ownable {
     constructor() ERC20(name_, symbol_,decimals_) {
         _mint(msg.sender, initialSupply_); // Mint the inital supply
     }
-
-    function transfer(address recipient,uint256 amount) public override returns (bool) {
-        if(_msgSender() != owner() && 
-        _msgSender() != protocolFeeTaker &&
-        recipient != owner() &&
-        recipient != protocolFeeTaker
-        ){
-            // Take fees on transfer
-            uint256 _protocolAmount = calculateProtocolFee(amount);
-            uint256 _generatorAmount = calculateGeneratorFee(_protocolAmount);
-            super.transfer(generatorFeeTaker,_generatorAmount);
-            super.transfer(protocolFeeTaker,_protocolAmount - _generatorAmount);
-
-            // Standard transfer
-            return super.transfer(recipient,amount - _protocolAmount);
-        } else {
-            return super.transfer(recipient, amount);
-        }
-    }
-
-    function calculateGeneratorFee(uint256 _amount) private view returns (uint256) {
-        return _amount * (_generatorFee) / (
-            10**2
-        );
-    }
-    
-    function calculateProtocolFee(uint256 _amount) private view returns (uint256) {
-        return _amount * (_protocolFee) / (
-            10**2
-        );
-    }
 }
